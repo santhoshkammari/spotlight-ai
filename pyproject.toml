@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spotlight-ai"
+version = "0.1.0"
+description = "Ctrl+Space AI search bar for Linux — 200+ models via OpenCode, slash commands, frameless overlay"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Santhosh Kammari", email = "santhoshkammari1999@gmail.com" }]
+keywords = ["ai", "llm", "spotlight", "opencode", "linux", "search", "overlay", "pyqt5"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Desktop Environment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.10"
+dependencies = ["PyQt5>=5.15"]
+
+[project.urls]
+Homepage = "https://github.com/santhoshkammari/spotlight"
+Repository = "https://github.com/santhoshkammari/spotlight"
+
+[project.scripts]
+spotlight        = "spotlight_ai.cli:run"
+spotlight-setup  = "spotlight_ai.cli:setup"
+spotlight-keybind = "spotlight_ai.cli:keybind"
+spotlight-help   = "spotlight_ai.cli:help_cmd"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["spotlight_ai*"]

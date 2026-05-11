@@ -1,0 +1,5 @@
+[console_scripts]
+spotlight = spotlight_ai.cli:run
+spotlight-help = spotlight_ai.cli:help_cmd
+spotlight-keybind = spotlight_ai.cli:keybind
+spotlight-setup = spotlight_ai.cli:setup

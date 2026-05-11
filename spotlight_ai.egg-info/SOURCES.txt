@@ -1,0 +1,16 @@
+LICENSE
+README.md
+pyproject.toml
+spotlight_ai/__init__.py
+spotlight_ai/__main__.py
+spotlight_ai/app.py
+spotlight_ai/cli.py
+spotlight_ai/opencode.py
+spotlight_ai/slash.py
+spotlight_ai/ui.py
+spotlight_ai.egg-info/PKG-INFO
+spotlight_ai.egg-info/SOURCES.txt
+spotlight_ai.egg-info/dependency_links.txt
+spotlight_ai.egg-info/entry_points.txt
+spotlight_ai.egg-info/requires.txt
+spotlight_ai.egg-info/top_level.txt
