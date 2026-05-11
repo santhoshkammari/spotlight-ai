@@ -20,7 +20,7 @@ class SpotlightLLM(QWidget):
         self.response_complete = threading.Event()
 
     def initUI(self):
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFocusPolicy(Qt.StrongFocus)
 
@@ -84,7 +84,6 @@ class SpotlightLLM(QWidget):
         x = (screen_size.width() - window_width) // 2
         y = screen_size.height() // 4
         self.setGeometry(x, y, window_width, 60)
-        self.setFixedWidth(window_width)
 
     def paintEvent(self, event):
         painter = QPainter(self)
