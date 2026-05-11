@@ -11,7 +11,7 @@ usage:
   spotlight                launch the bar
   spotlight --help         show this help
   spotlight-setup          install deps + register Ctrl+Space hotkey
-  spotlight-keybind        just register the Ctrl+Space hotkey
+  spotlight-keybind [KEY]  register hotkey (default: Ctrl+Space)
   spotlight-help           show this help
 
 slash commands (inside the bar):
@@ -97,20 +97,49 @@ def setup():
                 return
 
     # ── keybind ───────────────────────────────────────────────
-    ans = input("\n  Register Ctrl+Space hotkey? [Y/n]: ").strip().lower()
+    ans = input("\n  Register hotkey? [Y/n]: ").strip().lower()
     if ans in ("", "y"):
+        custom = input("  Key binding [default: <Control>space]: ").strip()
+        if custom:
+            sys.argv = [sys.argv[0], custom]
         keybind()
     else:
-        print("  skipped — run `spotlight-keybind` anytime")
+        print("  skipped — run `spotlight-keybind [BINDING]` anytime")
 
     print("\n  Done! Press Ctrl+Space to launch Spotlight.\n")
 
 
+KEYBIND_HELP = """usage: spotlight-keybind [BINDING]
+
+Register a global hotkey for Spotlight AI (GNOME only).
+
+  BINDING   GNOME key string (default: <Control>space)
+
+examples:
+  spotlight-keybind                      → Ctrl+Space  (default)
+  spotlight-keybind "<Super>space"       → Win+Space
+  spotlight-keybind "<Alt>space"         → Alt+Space
+  spotlight-keybind "<Control><Alt>s"    → Ctrl+Alt+S
+
+GNOME key format:
+  <Control>   Ctrl
+  <Super>     Windows/Meta key
+  <Alt>       Alt
+  <Shift>     Shift
+  combine: "<Control><Shift>space"
+"""
+
+
 def keybind():
-    """spotlight-keybind — register Ctrl+Space GNOME shortcut."""
-    if "--help" in sys.argv or "-h" in sys.argv:
-        print("usage: spotlight-keybind\n\nRegisters Ctrl+Space as global hotkey (GNOME only).")
+    """spotlight-keybind [BINDING] — register global hotkey."""
+    args = sys.argv[1:]
+
+    if "--help" in args or "-h" in args:
+        print(KEYBIND_HELP)
         return
+
+    # pick binding from first non-flag arg, else default
+    binding = next((a for a in args if not a.startswith("-")), "<Control>space")
 
     python = sys.executable
     cmd = f"{python} -m spotlight_ai"
@@ -134,10 +163,10 @@ def keybind():
         subprocess.run(["gsettings", "set", base, "custom-keybindings", f"['{path}']"], check=True)
 
     try:
-        subprocess.run(["gsettings", "set", schema, "name",    "Spotlight AI"],     check=True)
-        subprocess.run(["gsettings", "set", schema, "command", cmd],                check=True)
-        subprocess.run(["gsettings", "set", schema, "binding", "<Control>space"],   check=True)
-        print(f"  ✓ Ctrl+Space registered → {cmd}")
+        subprocess.run(["gsettings", "set", schema, "name",    "Spotlight AI"], check=True)
+        subprocess.run(["gsettings", "set", schema, "command", cmd],          check=True)
+        subprocess.run(["gsettings", "set", schema, "binding", binding],      check=True)
+        print(f"  ✓ {binding} registered → {cmd}")
     except Exception as e:
         print(f"  ✗ gsettings failed: {e}")
         print("    Are you on GNOME? For KDE/i3/others, add the shortcut manually.")
