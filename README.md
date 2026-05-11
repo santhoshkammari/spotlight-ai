@@ -1,5 +1,13 @@
 # Spotlight AI
 
+[![PyPI version](https://img.shields.io/pypi/v/spotlight-ai?style=flat-square&color=blue)](https://pypi.org/project/spotlight-ai/)
+[![GitHub stars](https://img.shields.io/github/stars/santhoshkammari/spotlight-ai?style=flat-square&color=yellow)](https://github.com/santhoshkammari/spotlight-ai/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/santhoshkammari/spotlight-ai?style=flat-square&color=green)](https://github.com/santhoshkammari/spotlight-ai/network)
+[![PyPI downloads](https://img.shields.io/pypi/dm/spotlight-ai?style=flat-square&color=orange)](https://pypi.org/project/spotlight-ai/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)](LICENSE)
+
+> ⭐ **If this saves you time, drop a star — it helps others find it!**
+
 A macOS Spotlight-style AI bar for Linux. Press a hotkey, ask anything, get answers inline — without leaving your workflow.
 
 Powered by [OpenCode](https://opencode.ai) with **200+ free and paid models** (DeepSeek, Gemini, Claude, Qwen, Kimi, GLM and more).
