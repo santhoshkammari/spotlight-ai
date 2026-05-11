@@ -1,133 +1,129 @@
 # Spotlight AI
 
-A macOS Spotlight-style AI search bar for Linux — press `Ctrl+Space`, ask anything, get answers inline. Powered by [OpenCode CLI](https://opencode.ai) with 200+ free and paid models.
+A macOS Spotlight-style AI bar for Linux. Press a hotkey, ask anything, get answers inline — without leaving your workflow.
 
-![demo](https://raw.githubusercontent.com/santhoshkammari/spotlight/main/assets/demo.gif)
-
----
-
-## What it looks like
-
-- Frameless dark glass bar appears at the center of your screen
-- Type your question, press Enter
-- Answer streams in below — window expands smoothly
-- Press `Esc` to dismiss
+Powered by [OpenCode](https://opencode.ai) with **200+ free and paid models** (DeepSeek, Gemini, Claude, Qwen, Kimi, GLM and more).
 
 ---
 
-## Features
+## Screenshots
 
-- **Global hotkey** `Ctrl+Space` — works system-wide via GNOME shortcut
-- **200+ models** via OpenCode — DeepSeek, Gemini, Claude, Qwen, Kimi, GLM, and more
-- **Slash commands** to switch models on the fly
-- **Persistent model config** saved to `~/.spotlight/config.json`
-- **Zero latency UI** — shows "thinking..." instantly, answer appears when ready
-- **Draggable** — click and drag anywhere on the bar to reposition
+**Type your question:**
 
----
+![search](assets/1-search.png)
 
-## Slash Commands
+**Thinking...**
 
-```
-/help                     show all commands
-/model                    show currently active model
-/models                   list all available models (fetched live from opencode)
+![thinking](assets/2-thinking.png)
 
-/<model-alias>            switch model
-/<model-alias> <prompt>   switch model AND run prompt immediately
-```
+**Answer inline:**
 
-### Examples
-
-```
-/gemini-2.5-flash
-/deepseek-v4-flash-free explain async/await in 3 lines
-/kimi-k2-instruct
-/claude-sonnet-4.6 write a regex for email validation
-```
-
-Aliases are auto-generated from model IDs — the last path segment in lowercase. No hardcoded list. When OpenCode adds new models, they appear automatically.
+![result](assets/3-result.png)
 
 ---
 
-## Setup
-
-### 1. Install dependencies
+## Install
 
 ```bash
-# OpenCode CLI
-curl -fsSL https://opencode.ai/install | bash
-
-# Python deps
-pip install PyQt5
+pip install spotlight-ai
+spotlight-setup
 ```
 
-### 2. Clone
+That's it. `spotlight-setup` will:
+- Install [OpenCode CLI](https://opencode.ai) automatically
+- Install PyQt5 if missing
+- Register your hotkey (default `Ctrl+Space`, or pick your own)
+
+---
+
+## Usage
+
+| Command | What it does |
+|---|---|
+| `spotlight` | Launch the bar |
+| `spotlight --help` | Show help |
+| `spotlight-setup` | First-time setup (install deps + hotkey) |
+| `spotlight-keybind` | Register `Ctrl+Space` hotkey |
+| `spotlight-keybind "<Super>space"` | Register a custom hotkey |
+| `spotlight-help` | Show all commands |
+
+### Custom hotkeys
 
 ```bash
-git clone https://github.com/santhoshkammari/spotlight.git
-cd spotlight
+spotlight-keybind                        # Ctrl+Space  (default)
+spotlight-keybind "<Super>space"         # Win+Space
+spotlight-keybind "<Alt>space"           # Alt+Space
+spotlight-keybind "<Control><Shift>s"    # Ctrl+Shift+S
 ```
 
-### 3. Register Ctrl+Space hotkey (GNOME)
+---
 
-```bash
-# Creates a GNOME custom shortcut
-SCRIPT_PATH="$(pwd)/app.py"
-PYTHON_PATH="$(which python3)"
+## Slash commands (inside the bar)
 
-gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings \
-  "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']"
+| Command | What it does |
+|---|---|
+| `/help` | Show slash command menu |
+| `/model` | Show current active model |
+| `/models` | List all available models (fetched live) |
+| `/<alias>` | Switch model — e.g. `/gemini-2.5-flash` |
+| `/<alias> <prompt>` | Switch + ask in one shot |
 
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ \
-  name 'Spotlight AI'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ \
-  command "$PYTHON_PATH $SCRIPT_PATH"
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ \
-  binding '<Control>space'
+Model aliases are auto-derived from model IDs (last segment, lowercase). No hardcoded list — when OpenCode adds new models, they appear automatically.
+
+**Examples:**
+```
+/deepseek-v4-flash-free
+/gemini-2.5-flash what is a monad?
+/claude-sonnet-4.6 write a regex for email
+/kimi-k2-instruct explain async/await in 3 lines
 ```
 
-### 4. Press `Ctrl+Space`
+Active model persists in `~/.spotlight/config.json`.
 
 ---
 
 ## How it works
 
 ```
-Ctrl+Space
-    └─▶ app.py launches PyQt5 window
-            └─▶ on Enter: opencode run --format json -m <model> "<prompt>"
-                    └─▶ streams JSON events → extracts text → displays in UI
+hotkey pressed
+  └─▶ PyQt5 frameless dark overlay appears (center of screen)
+        └─▶ you type, press Enter
+              └─▶ opencode run --format json -m <model> "<prompt>"
+                    └─▶ answer appears in the bar
+                          └─▶ press Esc to close
 ```
 
-Slash commands are parsed before sending to OpenCode. Model state persists in `~/.spotlight/config.json`.
+Slash commands are parsed before sending to OpenCode. Model switches are instant and persistent.
+
+---
+
+## Requirements
+
+- Linux (GNOME for hotkey auto-registration; other DEs work manually)
+- Python 3.10+
+- [OpenCode CLI](https://opencode.ai) — installed automatically by `spotlight-setup`
+- PyQt5 — installed automatically by `spotlight-setup`
 
 ---
 
 ## Files
 
 ```
-app.py        entry point
-ui.py         PyQt5 window — search bar + result area + animations
-opencode.py   subprocess wrapper around opencode CLI
-slash.py      slash command parser — dynamic model list, persistent config
+spotlight_ai/
+  cli.py        entry points: spotlight, spotlight-setup, spotlight-keybind, spotlight-help
+  ui.py         PyQt5 frameless window — search bar + result area + animations
+  opencode.py   subprocess wrapper around opencode CLI
+  slash.py      slash command parser — live model list, persistent config
 ```
-
----
-
-## Requirements
-
-- Linux with GNOME (or any WM — hotkey setup differs)
-- Python 3.10+
-- PyQt5
-- [OpenCode CLI](https://opencode.ai)
 
 ---
 
 ## Why not just use the terminal?
 
-Because `Ctrl+Space → type → read` is 5x faster than switching to a terminal, typing a long command, and scrolling through output. This stays on top, answers inline, and disappears with `Esc`.
+`hotkey → type → read` beats switching windows, typing a long command, and scrolling output. Spotlight stays on top, answers inline, and disappears with `Esc`. Works from anywhere — full-screen apps, browsers, anything.
 
 ---
 
-Built with OpenCode + PyQt5. Inspired by macOS Spotlight and [Raycast](https://raycast.com).
+Built with [OpenCode](https://opencode.ai) + PyQt5. Inspired by macOS Spotlight.
+
+**PyPI:** [spotlight-ai](https://pypi.org/project/spotlight-ai/) · **GitHub:** [santhoshkammari/spotlight](https://github.com/santhoshkammari/spotlight)
