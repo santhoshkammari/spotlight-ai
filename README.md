@@ -126,4 +126,4 @@ spotlight_ai/
 
 Built with [OpenCode](https://opencode.ai) + PyQt5. Inspired by macOS Spotlight.
 
-**PyPI:** [spotlight-ai](https://pypi.org/project/spotlight-ai/) · **GitHub:** [santhoshkammari/spotlight](https://github.com/santhoshkammari/spotlight)
+**PyPI:** [spotlight-ai](https://pypi.org/project/spotlight-ai/) · **GitHub:** [santhoshkammari/spotlight-ai](https://github.com/santhoshkammari/spotlight-ai)

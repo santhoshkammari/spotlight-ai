@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spotlight-ai"
-version = "0.1.4"
+version = "0.1.5"
 description = "Ctrl+Space AI search bar for Linux — 200+ models via OpenCode, slash commands, frameless overlay"
 readme = "README.md"
 license = { text = "MIT" }
@@ -28,8 +28,8 @@ requires-python = ">=3.10"
 dependencies = ["PyQt5>=5.15"]
 
 [project.urls]
-Homepage = "https://github.com/santhoshkammari/spotlight"
-Repository = "https://github.com/santhoshkammari/spotlight"
+Homepage = "https://github.com/santhoshkammari/spotlight-ai"
+Repository = "https://github.com/santhoshkammari/spotlight-ai"
 
 [project.scripts]
 spotlight        = "spotlight_ai.cli:run"
