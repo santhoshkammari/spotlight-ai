@@ -75,7 +75,7 @@ class SpotlightLLM(QWidget):
         self.result_area.setVisible(False)
         self.layout.addWidget(self.result_area)
 
-        self.token_emitter.token_ready.connect(self.update_result_area)
+        self.token_emitter.token_ready.connect(self.update_result_area, Qt.QueuedConnection)
         self.setLayout(self.layout)
 
         screen = QDesktopWidget().screenNumber(QDesktopWidget().cursor().pos())
