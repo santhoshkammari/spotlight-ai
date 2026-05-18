@@ -26,20 +26,80 @@ press Esc inside the bar to close it
 """
 
 
+PID_FILE = os.path.expanduser("~/.spotlight/spotlight.pid")
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def _read_pid():
+    try:
+        with open(PID_FILE) as f:
+            pid = int(f.read().strip())
+        return pid if _pid_alive(pid) else None
+    except Exception:
+        return None
+
+
+def _write_pid():
+    os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+    with open(PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
 def run():
-    """spotlight — launch the AI bar (or show help with --help)."""
+    """spotlight — toggle the AI bar (single-instance via SIGUSR1)."""
     if "--help" in sys.argv or "-h" in sys.argv:
         print(HELP_TEXT)
         return
 
+    # If a daemon is already running, signal it to toggle and exit.
+    existing = _read_pid()
+    if existing:
+        import signal as _sig
+        try:
+            os.kill(existing, _sig.SIGUSR1)
+            return
+        except OSError:
+            pass  # stale, fall through and become the daemon
+
+    import signal
     from PyQt5.QtWidgets import QApplication
-    from spotlight_ai.ui import SpotlightLLM
+    from spotlight_ai.ui import Spotlight
     from spotlight_ai.opencode import opencode_stream
 
     app = QApplication(sys.argv)
-    ex = SpotlightLLM(streamer=opencode_stream)
-    ex.show()
-    sys.exit(app.exec_())
+    app.setQuitOnLastWindowClosed(False)
+
+    win = Spotlight(streamer=opencode_stream)
+
+    # SIGUSR1 from subsequent `spotlight` invocations → toggle window.
+    # Use emitter signal so toggle runs on the Qt main thread.
+    signal.signal(signal.SIGUSR1, lambda *_: win.emitter.toggle.emit())
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+    signal.signal(signal.SIGTERM, lambda *_: app.quit())
+
+    # Heartbeat so Python can deliver signals while Qt event loop runs.
+    from PyQt5.QtCore import QTimer
+    _hb = QTimer()
+    _hb.start(200)
+    _hb.timeout.connect(lambda: None)
+
+    _write_pid()
+    try:
+        win.toggle()  # first launch shows it
+        sys.exit(app.exec_())
+    finally:
+        try:
+            if _read_pid() == os.getpid():
+                os.remove(PID_FILE)
+        except Exception:
+            pass
 
 
 def setup():

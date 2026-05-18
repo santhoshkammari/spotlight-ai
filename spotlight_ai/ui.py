@@ -1,175 +1,233 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QVBoxLayout, QTextEdit, QDesktopWidget, QSizePolicy
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal, QObject
-from PyQt5.QtGui import QPainter, QColor, QTextCursor
 import threading
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QLineEdit, QVBoxLayout, QTextEdit,
+    QDesktopWidget, QSizePolicy,
+)
+from PyQt5.QtCore import (
+    Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal,
+    QObject, QTimer, QPoint,
+)
+from PyQt5.QtGui import QPainter, QColor, QTextCursor
 from spotlight_ai.slash import handle as slash_handle
 
 
-class TokenEmitter(QObject):
-    token_ready = pyqtSignal(str)
+WIDTH = 720
+COLLAPSED_H = 64
+EXPANDED_H = 420
+ANIM_MS = 200
 
 
-class SpotlightLLM(QWidget):
+class Emitter(QObject):
+    token = pyqtSignal(str)
+    done = pyqtSignal()
+    toggle = pyqtSignal()
+
+
+class Spotlight(QWidget):
     def __init__(self, streamer):
         super().__init__()
         self.streamer = streamer
-        self.dragging = False
-        self.offset = None
-        self.token_emitter = TokenEmitter()
         self._expanded = False
-        self.initUI()
-        self.response_complete = threading.Event()
+        self._cancel = threading.Event()
+        self._thread = None
+        self._drag_pos = None
+        self.emitter = Emitter()
+        self._build_ui()
+        self._center()
+        self.emitter.token.connect(self._on_token, Qt.QueuedConnection)
+        self.emitter.toggle.connect(self.toggle, Qt.QueuedConnection)
 
-    def initUI(self):
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+    def _build_ui(self):
+        # Normal top-level window (appears in Alt+Tab), frameless, on top.
+        self.setWindowFlags(
+            Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+        )
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setWindowTitle("Spotlight")
 
-        self.layout = QVBoxLayout()
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(0)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 16, 20, 16)
+        lay.setSpacing(0)
 
-        self.search_bar = QLineEdit(self)
-        self.search_bar.setPlaceholderText("Ask anything...")
-        self.search_bar.setStyleSheet("""
+        self.input = QLineEdit(self)
+        self.input.setPlaceholderText("Ask anything...")
+        self.input.setStyleSheet("""
             QLineEdit {
-                background-color: rgba(255, 255, 255, 0);
-                border: none;
-                padding: 5px;
+                background: transparent; border: none;
                 color: #FFFFFF;
-                font-family: "Segoe UI", "SF Pro Display", sans-serif;
-                font-size: 24px;
-                font-weight: 350;
+                font-family: "SF Pro Display","Segoe UI","Ubuntu",sans-serif;
+                font-size: 22px; font-weight: 300;
+                padding: 4px 0;
             }
         """)
-        self.search_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.search_bar.returnPressed.connect(self.on_submit)
-        self.layout.addWidget(self.search_bar)
+        self.input.returnPressed.connect(self._submit)
+        lay.addWidget(self.input)
 
-        self.result_area = QTextEdit(self)
-        self.result_area.setReadOnly(True)
-        self.result_area.setStyleSheet("""
+        self.output = QTextEdit(self)
+        self.output.setReadOnly(True)
+        self.output.setStyleSheet("""
             QTextEdit {
-                background-color: transparent;
-                border: none;
-                border-top: 1px solid rgba(255, 255, 255, 20);
-                padding-top: 15px;
-                margin-top: 5px;
-                color: #E0E0E0;
-                font-family: "Segoe UI", "SF Pro Text", sans-serif;
-                font-size: 16px;
-                line-height: 1.5;
+                background: transparent; border: none;
+                border-top: 1px solid rgba(255,255,255,20);
+                margin-top: 10px; padding: 12px 0 0 0;
+                color: #D8D8D8;
+                font-family: "SF Pro Text","Segoe UI","Ubuntu",sans-serif;
+                font-size: 15px;
             }
-            QScrollBar:vertical {
-                width: 6px;
-                background: transparent;
-            }
+            QScrollBar:vertical { width: 4px; background: transparent; }
             QScrollBar::handle:vertical {
-                background: rgba(255, 255, 255, 40);
-                border-radius: 3px;
-                min-height: 20px;
+                background: rgba(255,255,255,40); border-radius: 2px;
             }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
         """)
-        self.result_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.result_area.setVisible(False)
-        self.layout.addWidget(self.result_area)
+        self.output.setVisible(False)
+        lay.addWidget(self.output)
 
-        self.token_emitter.token_ready.connect(self.update_result_area, Qt.QueuedConnection)
-        self.setLayout(self.layout)
+    def _center(self):
+        s = QDesktopWidget().screenGeometry(
+            QDesktopWidget().screenNumber(QDesktopWidget().cursor().pos())
+        )
+        self.setGeometry(
+            s.x() + (s.width() - WIDTH) // 2,
+            s.y() + s.height() // 4,
+            WIDTH, COLLAPSED_H,
+        )
 
-        screen = QDesktopWidget().screenNumber(QDesktopWidget().cursor().pos())
-        screen_size = QDesktopWidget().screenGeometry(screen)
-        window_width = 750
-        x = (screen_size.width() - window_width) // 2
-        y = screen_size.height() // 4
-        self.setGeometry(x, y, window_width, 60)
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setBrush(QColor(28, 28, 30, 248))
+        p.setPen(QColor(255, 255, 255, 30))
+        p.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), 14, 14)
 
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setBrush(QColor(24, 24, 24, 245))
-        painter.setPen(QColor(255, 255, 255, 25))
-        rect = self.rect()
-        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 16, 16)
+    # ── toggle / show / hide ───────────────────────────────────────────────
+    def toggle(self):
+        if self.isVisible() and self.isActiveWindow():
+            self.hide()
+        else:
+            self._center()  # re-center on cursor's screen each show
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            self.input.setFocus()
+            self.input.selectAll()
 
-    def on_submit(self):
-        query = self.search_bar.text().strip()
-        if not query:
+    # ── prompt flow ────────────────────────────────────────────────────────
+    def _submit(self):
+        q = self.input.text().strip()
+        if not q:
             return
-        if query.startswith("/"):
-            result = slash_handle(query)
-            if result.show_text:
-                self._show(result.show_text)
-            if result.new_model:
-                self.search_bar.setPlaceholderText(f"model: {result.new_model.split('/')[-1]}")
-            if result.prompt:
-                self._run_prompt(result.prompt)
+        if q.startswith("/"):
+            res = slash_handle(q)
+            if res.show_text:
+                self._show_text(res.show_text)
+            if res.new_model:
+                self.input.setPlaceholderText(
+                    f"model: {res.new_model.split('/')[-1]}"
+                )
+            if res.prompt:
+                self._run(res.prompt)
+            self.input.clear()
             return
-        self._run_prompt(query)
+        self._run(q)
+        self.input.clear()
 
-    def _run_prompt(self, query):
-        self.result_area.setPlainText("thinking...")
-        if not self._expanded:
-            self.result_area.setVisible(True)
-            self._expand()
-        self.response_complete.clear()
-        threading.Thread(target=self.get_response, args=(query,), daemon=True).start()
+    def _run(self, query):
+        self._cancel.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=0.3)
+        self._cancel = threading.Event()
+        self._show_text("…")
+        self._thread = threading.Thread(
+            target=self._worker, args=(query, self._cancel), daemon=True
+        )
+        self._thread.start()
 
-    def _show(self, text):
-        self.result_area.setPlainText(text)
-        if not self._expanded:
-            self.result_area.setVisible(True)
-            self._expand()
+    def _worker(self, query, cancel):
+        try:
+            for text in self.streamer(query, cancel_event=cancel):
+                if cancel.is_set():
+                    return
+                self.emitter.token.emit(text)
+        except Exception as e:
+            self.emitter.token.emit(f"[error: {e}]")
+        finally:
+            self.emitter.done.emit()
+
+    def _on_token(self, text):
+        self.output.setPlainText(text)
+        self.output.moveCursor(QTextCursor.End)
+
+    def _show_text(self, t):
+        self.output.setPlainText(t)
+        self._expand()
 
     def _expand(self):
+        if self._expanded:
+            return
         self._expanded = True
+        self.output.setVisible(True)
+        self._anim(COLLAPSED_H, EXPANDED_H)
+
+    def _collapse(self):
+        if not self._expanded:
+            return
+        self._expanded = False
+        self._anim(self.height(), COLLAPSED_H, after=self._after_collapse)
+
+    def _after_collapse(self):
+        self.output.setVisible(False)
+        self.output.clear()
+
+    def _anim(self, h0, h1, after=None):
         x, y, w = self.x(), self.y(), self.width()
-        self.animation = QPropertyAnimation(self, b"geometry")
-        self.animation.setDuration(250)
-        self.animation.setStartValue(QRect(x, y, w, 60))
-        self.animation.setEndValue(QRect(x, y, w, 400))
-        self.animation.setEasingCurve(QEasingCurve.OutCubic)
-        self.animation.start()
+        self._a = QPropertyAnimation(self, b"geometry")
+        self._a.setDuration(ANIM_MS)
+        self._a.setStartValue(QRect(x, y, w, h0))
+        self._a.setEndValue(QRect(x, y, w, h1))
+        self._a.setEasingCurve(QEasingCurve.OutCubic)
+        if after:
+            self._a.finished.connect(after)
+        self._a.start()
 
-    def update_result_area(self, text):
-        self.result_area.setPlainText(text)
-        self.result_area.moveCursor(QTextCursor.End)
-
-    def get_response(self, prompt):
-        try:
-            for token in self.streamer(prompt):
-                self.token_emitter.token_ready.emit(token)
-        except Exception as e:
-            self.token_emitter.token_ready.emit(f"Error: {e}")
-        finally:
-            self.response_complete.set()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            self.close()
+    # ── events ─────────────────────────────────────────────────────────────
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Escape:
+            self._cancel.set()
+            self.hide()
         else:
-            super().keyPressEvent(event)
+            super().keyPressEvent(e)
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragging = True
-            self.offset = event.pos()
+    def mousePressEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self._drag_pos = e.globalPos() - self.frameGeometry().topLeft()
 
-    def mouseMoveEvent(self, event):
-        if self.dragging and self.offset is not None:
-            self.move(self.mapToGlobal(event.pos() - self.offset))
+    def mouseMoveEvent(self, e):
+        if self._drag_pos and e.buttons() & Qt.LeftButton:
+            self.move(e.globalPos() - self._drag_pos)
 
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragging = False
-            self.offset = None
+    def mouseReleaseEvent(self, _):
+        self._drag_pos = None
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def showEvent(self, e):
+        super().showEvent(e)
         self.activateWindow()
         self.raise_()
-        self.search_bar.setFocus()
+        self.input.setFocus()
 
-    def closeEvent(self, event):
-        super().closeEvent(event)
+    def hideEvent(self, e):
+        self._cancel.set()
+        # reset to collapsed for next show
+        if self._expanded:
+            self._expanded = False
+            self.output.setVisible(False)
+            self.output.clear()
+            self.resize(WIDTH, COLLAPSED_H)
+        self.input.clear()
+        super().hideEvent(e)
+
+    def closeEvent(self, e):
+        # never destroy; just hide
+        e.ignore()
+        self.hide()

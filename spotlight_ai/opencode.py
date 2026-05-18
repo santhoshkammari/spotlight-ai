@@ -1,19 +1,19 @@
 import subprocess
 import json
 import shutil
+import threading
 from typing import Iterator
 from spotlight_ai.slash import get_current_model
 
 
 def _opencode_bin() -> str:
-    # prefer system PATH, fall back to default install location
     found = shutil.which("opencode")
     if found:
         return found
     return "/home/ntlpt24/.opencode/bin/opencode"
 
 
-def opencode_stream(prompt: str, model: str = None) -> Iterator[str]:
+def opencode_stream(prompt: str, model: str = None, cancel_event: threading.Event = None) -> Iterator[str]:
     if model is None:
         model = get_current_model()
     cmd = [_opencode_bin(), "run", "--format", "json", "-m", model, prompt]
@@ -29,6 +29,9 @@ def opencode_stream(prompt: str, model: str = None) -> Iterator[str]:
     full_text = ""
     try:
         for line in proc.stdout:
+            if cancel_event and cancel_event.is_set():
+                proc.terminate()
+                return
             line = line.strip()
             if not line:
                 continue
@@ -36,10 +39,31 @@ def opencode_stream(prompt: str, model: str = None) -> Iterator[str]:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if event.get("type") == "text":
+            etype = event.get("type")
+            if etype == "text":
                 full_text = event.get("part", {}).get("text", "")
+            elif etype == "error":
+                msg = event.get("message") or event.get("error") or str(event)
+                yield f"\n[error: {msg}]"
+                return
+    except Exception as e:
+        yield f"\n[stream error: {e}]"
+        return
     finally:
-        proc.stdout.close()
+        try:
+            proc.stdout.close()
+        except Exception:
+            pass
         proc.wait()
 
-    yield full_text
+    if not full_text:
+        return
+
+    # Simulate word-by-word streaming since opencode delivers full text at once
+    words = full_text.split(" ")
+    accumulated = ""
+    for i, word in enumerate(words):
+        if cancel_event and cancel_event.is_set():
+            return
+        accumulated += ("" if i == 0 else " ") + word
+        yield accumulated
