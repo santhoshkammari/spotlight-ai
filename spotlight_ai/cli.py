@@ -95,6 +95,8 @@ def run():
         win.toggle()  # first launch shows it
         sys.exit(app.exec_())
     finally:
+        from spotlight_ai.opencode import shutdown
+        shutdown()
         try:
             if _read_pid() == os.getpid():
                 os.remove(PID_FILE)
