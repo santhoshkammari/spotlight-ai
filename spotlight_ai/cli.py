@@ -72,11 +72,16 @@ def run():
     from PyQt5.QtWidgets import QApplication
     from spotlight_ai.ui import Spotlight
     from spotlight_ai.opencode import opencode_stream
+    from spotlight_ai.backends import local_stream, claude_stream
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    win = Spotlight(streamer=opencode_stream)
+    win = Spotlight(streamers={
+        "opencode": opencode_stream,
+        "local": local_stream,
+        "claude": claude_stream,
+    })
 
     # SIGUSR1 from subsequent `spotlight` invocations → toggle window.
     # Use emitter signal so toggle runs on the Qt main thread.

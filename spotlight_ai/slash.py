@@ -38,6 +38,17 @@ def set_current_model(model: str):
     cfg["model"] = model
     _save_config(cfg)
 
+BACKENDS = ("opencode", "local", "claude")
+DEFAULT_BACKEND = "opencode"
+
+def get_current_backend() -> str:
+    return _load_config().get("backend", DEFAULT_BACKEND)
+
+def set_current_backend(backend: str):
+    cfg = _load_config()
+    cfg["backend"] = backend
+    _save_config(cfg)
+
 
 # ── dynamic model list ────────────────────────────────────────────────────────
 

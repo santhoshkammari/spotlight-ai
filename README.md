@@ -10,7 +10,7 @@
 
 A macOS Spotlight-style AI bar for Linux. Press a hotkey, ask anything, get answers inline — without leaving your workflow.
 
-Powered by [OpenCode](https://opencode.ai) with **200+ free and paid models** (DeepSeek, Gemini, Claude, Qwen, Kimi, GLM and more).
+Powered by [OpenCode](https://opencode.ai) with **200+ free and paid models** (DeepSeek, Gemini, Claude, Qwen, Kimi, GLM and more) — plus a radio-button switch for a local vLLM server or Claude Code directly.
 
 ---
 
@@ -90,15 +90,30 @@ Active model persists in `~/.spotlight/config.json`.
 
 ---
 
+## Backend selector
+
+Three radio buttons above the result area (not a dropdown — one click to switch):
+
+| Backend | What it hits |
+|---|---|
+| **OpenCode** (default) | persistent `opencode serve` + SSE, 200+ models |
+| **Local** | your own vLLM server (`SPOTLIGHT_LOCAL_URL`, default `http://192.168.170.49:8000`) |
+| **Claude** | `claude -p --dangerously-skip-permissions --output-format stream-json` |
+
+Selection persists in `~/.spotlight/config.json` under `backend`.
+
+---
+
 ## How it works
 
 ```
 hotkey pressed
   └─▶ PyQt5 frameless dark overlay appears (center of screen)
         └─▶ you type, press Enter
-              └─▶ opencode run --format json -m <model> "<prompt>"
-                    └─▶ answer appears in the bar
-                          └─▶ press Esc to close
+              └─▶ active backend streams tokens as they're generated
+                    (opencode serve SSE / vLLM SSE / claude stream-json)
+                          └─▶ answer appears in the bar, token by token
+                                └─▶ press Esc to close
 ```
 
 Slash commands are parsed before sending to OpenCode. Model switches are instant and persistent.
@@ -119,9 +134,10 @@ Slash commands are parsed before sending to OpenCode. Model switches are instant
 ```
 spotlight_ai/
   cli.py        entry points: spotlight, spotlight-setup, spotlight-keybind, spotlight-help
-  ui.py         PyQt5 frameless window — search bar + result area + animations
-  opencode.py   subprocess wrapper around opencode CLI
-  slash.py      slash command parser — live model list, persistent config
+  ui.py         PyQt5 frameless window — search bar + backend radios + result area + animations
+  opencode.py   persistent `opencode serve` + SSE streaming backend
+  backends.py   local vLLM + Claude Code streaming backends
+  slash.py      slash command parser — live model list, persistent config (model + backend)
 ```
 
 ---

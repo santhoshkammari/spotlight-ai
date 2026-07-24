@@ -1,21 +1,26 @@
 import sys
 import threading
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLineEdit, QVBoxLayout, QTextEdit,
-    QDesktopWidget, QSizePolicy,
+    QApplication, QWidget, QLineEdit, QVBoxLayout, QHBoxLayout, QTextEdit,
+    QDesktopWidget, QSizePolicy, QRadioButton, QButtonGroup,
 )
 from PyQt5.QtCore import (
     Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal,
     QObject, QTimer, QPoint,
 )
 from PyQt5.QtGui import QPainter, QColor, QTextCursor
-from spotlight_ai.slash import handle as slash_handle
+from spotlight_ai.slash import (
+    handle as slash_handle,
+    BACKENDS, get_current_backend, set_current_backend,
+)
 
 
 WIDTH = 720
 COLLAPSED_H = 64
 EXPANDED_H = 420
 ANIM_MS = 200
+
+BACKEND_LABELS = {"opencode": "OpenCode", "local": "Local", "claude": "Claude"}
 
 
 class Emitter(QObject):
@@ -25,9 +30,10 @@ class Emitter(QObject):
 
 
 class Spotlight(QWidget):
-    def __init__(self, streamer):
+    def __init__(self, streamers):
         super().__init__()
-        self.streamer = streamer
+        self.streamers = streamers  # {"opencode": fn, "local": fn, "claude": fn}
+        self.backend = get_current_backend()
         self._expanded = False
         self._cancel = threading.Event()
         self._thread = None
@@ -63,6 +69,30 @@ class Spotlight(QWidget):
         """)
         self.input.returnPressed.connect(self._submit)
         lay.addWidget(self.input)
+
+        radio_row = QHBoxLayout()
+        radio_row.setContentsMargins(0, 8, 0, 0)
+        radio_row.setSpacing(18)
+        radio_row.addStretch()
+        self._backend_group = QButtonGroup(self)
+        radio_style = """
+            QRadioButton {
+                color: rgba(255,255,255,150);
+                font-family: "SF Pro Text","Segoe UI","Ubuntu",sans-serif;
+                font-size: 12px;
+            }
+            QRadioButton::indicator {
+                width: 10px; height: 10px;
+            }
+        """
+        for name in BACKENDS:
+            rb = QRadioButton(BACKEND_LABELS[name], self)
+            rb.setStyleSheet(radio_style)
+            rb.setChecked(name == self.backend)
+            rb.toggled.connect(lambda checked, n=name: checked and self._select_backend(n))
+            self._backend_group.addButton(rb)
+            radio_row.addWidget(rb)
+        lay.addLayout(radio_row)
 
         self.output = QTextEdit(self)
         self.output.setReadOnly(True)
@@ -144,9 +174,14 @@ class Spotlight(QWidget):
         )
         self._thread.start()
 
+    def _select_backend(self, name):
+        self.backend = name
+        set_current_backend(name)
+
     def _worker(self, query, cancel):
+        streamer = self.streamers[self.backend]
         try:
-            for text in self.streamer(query, cancel_event=cancel):
+            for text in streamer(query, cancel_event=cancel):
                 if cancel.is_set():
                     return
                 self.emitter.token.emit(text)
