@@ -2,7 +2,7 @@ import sys
 import threading
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLineEdit, QVBoxLayout, QHBoxLayout, QTextEdit,
-    QDesktopWidget, QSizePolicy, QRadioButton, QButtonGroup,
+    QDesktopWidget, QSizePolicy, QLabel,
 )
 from PyQt5.QtCore import (
     Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal,
@@ -12,6 +12,7 @@ from PyQt5.QtGui import QPainter, QColor, QTextCursor
 from spotlight_ai.slash import (
     handle as slash_handle,
     BACKENDS, get_current_backend, set_current_backend,
+    CYCLE_MODELS, get_backend_model, cycle_backend_model,
 )
 
 
@@ -70,29 +71,26 @@ class Spotlight(QWidget):
         self.input.returnPressed.connect(self._submit)
         lay.addWidget(self.input)
 
-        radio_row = QHBoxLayout()
-        radio_row.setContentsMargins(0, 8, 0, 0)
-        radio_row.setSpacing(18)
-        radio_row.addStretch()
-        self._backend_group = QButtonGroup(self)
-        radio_style = """
-            QRadioButton {
+        backend_row = QHBoxLayout()
+        backend_row.setContentsMargins(0, 8, 0, 0)
+        backend_row.setSpacing(14)
+        backend_row.addStretch()
+        label_style = """
+            QLabel {
                 color: rgba(255,255,255,150);
                 font-family: "SF Pro Text","Segoe UI","Ubuntu",sans-serif;
                 font-size: 12px;
             }
-            QRadioButton::indicator {
-                width: 10px; height: 10px;
-            }
         """
-        for name in BACKENDS:
-            rb = QRadioButton(BACKEND_LABELS[name], self)
-            rb.setStyleSheet(radio_style)
-            rb.setChecked(name == self.backend)
-            rb.toggled.connect(lambda checked, n=name: checked and self._select_backend(n))
-            self._backend_group.addButton(rb)
-            radio_row.addWidget(rb)
-        lay.addLayout(radio_row)
+        self._model_label = QLabel(self)
+        self._model_label.setStyleSheet(label_style)
+        self._backend_label = QLabel(self)
+        self._backend_label.setStyleSheet(label_style)
+        self._update_backend_label()
+        self._update_model_label()
+        backend_row.addWidget(self._model_label)
+        backend_row.addWidget(self._backend_label)
+        lay.addLayout(backend_row)
 
         self.output = QTextEdit(self)
         self.output.setReadOnly(True)
@@ -177,11 +175,36 @@ class Spotlight(QWidget):
     def _select_backend(self, name):
         self.backend = name
         set_current_backend(name)
+        self._update_backend_label()
+        self._update_model_label()
+
+    def _update_backend_label(self):
+        self._backend_label.setText(f"◂ {BACKEND_LABELS[self.backend]} ▸")
+
+    def _update_model_label(self):
+        if self.backend not in CYCLE_MODELS:
+            self._model_label.setText("")
+            return
+        model = get_backend_model(self.backend)
+        short = model.split("/")[-1]
+        self._model_label.setText(f"▲ {short} ▼")
+
+    def _cycle_backend(self, direction):
+        idx = BACKENDS.index(self.backend)
+        idx = (idx + direction) % len(BACKENDS)
+        self._select_backend(BACKENDS[idx])
+
+    def _cycle_model(self, direction):
+        if self.backend not in CYCLE_MODELS:
+            return
+        cycle_backend_model(self.backend, direction)
+        self._update_model_label()
 
     def _worker(self, query, cancel):
         streamer = self.streamers[self.backend]
+        model = get_backend_model(self.backend) if self.backend in CYCLE_MODELS else None
         try:
-            for text in streamer(query, cancel_event=cancel):
+            for text in streamer(query, model=model, cancel_event=cancel):
                 if cancel.is_set():
                     return
                 self.emitter.token.emit(text)
@@ -231,6 +254,14 @@ class Spotlight(QWidget):
         if e.key() == Qt.Key_Escape:
             self._cancel.set()
             self.hide()
+        elif e.key() == Qt.Key_Left and e.modifiers() & Qt.AltModifier:
+            self._cycle_backend(-1)
+        elif e.key() == Qt.Key_Right and e.modifiers() & Qt.AltModifier:
+            self._cycle_backend(1)
+        elif e.key() == Qt.Key_Up and e.modifiers() & Qt.AltModifier:
+            self._cycle_model(-1)
+        elif e.key() == Qt.Key_Down and e.modifiers() & Qt.AltModifier:
+            self._cycle_model(1)
         else:
             super().keyPressEvent(e)
 

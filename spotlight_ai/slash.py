@@ -50,6 +50,51 @@ def set_current_backend(backend: str):
     _save_config(cfg)
 
 
+# ── per-backend model cycling (Alt+Up/Down) ────────────────────────────────────
+
+OPENCODE_CYCLE_MODELS = (
+    "opencode/deepseek-v4-flash-free",
+    "opencode/laguna-s-2.1-free",
+    "opencode/ling-3.0-flash-free",
+)
+CLAUDE_CYCLE_MODELS = ("sonnet", "opus", "haiku", "fable")
+
+CYCLE_MODELS = {
+    "opencode": OPENCODE_CYCLE_MODELS,
+    "claude": CLAUDE_CYCLE_MODELS,
+}
+CYCLE_DEFAULTS = {
+    "opencode": OPENCODE_CYCLE_MODELS[0],
+    "claude": "sonnet",
+}
+
+def get_backend_model(backend: str) -> str:
+    if backend == "opencode":
+        return get_current_model()
+    key = f"model_{backend}"
+    return _load_config().get(key, CYCLE_DEFAULTS.get(backend, DEFAULT_MODEL))
+
+def set_backend_model(backend: str, model: str):
+    if backend == "opencode":
+        set_current_model(model)
+        return
+    cfg = _load_config()
+    cfg[f"model_{backend}"] = model
+    _save_config(cfg)
+
+def cycle_backend_model(backend: str, direction: int) -> str:
+    """Move to the next/previous model for `backend`, persist it, return it."""
+    models = CYCLE_MODELS.get(backend)
+    if not models:
+        return get_backend_model(backend)
+    current = get_backend_model(backend)
+    idx = models.index(current) if current in models else 0
+    idx = (idx + direction) % len(models)
+    new_model = models[idx]
+    set_backend_model(backend, new_model)
+    return new_model
+
+
 # ── dynamic model list ────────────────────────────────────────────────────────
 
 def fetch_models() -> list[str]:

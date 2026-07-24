@@ -13,7 +13,7 @@ from typing import Iterator
 
 import httpx
 
-LOCAL_URL = os.environ.get("SPOTLIGHT_LOCAL_URL", "http://192.168.170.49:8000")
+LOCAL_URL = os.environ.get("SPOTLIGHT_LOCAL_URL", "http://192.168.170.49:8077")
 
 
 def _claude_bin() -> str:
@@ -73,7 +73,7 @@ def local_stream(prompt: str, model: str = None, cancel_event: threading.Event =
         base_url += "/v1"
 
     body = {
-        "model": model or "auto",
+        "model": model or "",
         "messages": [{"role": "user", "content": prompt}],
         "stream": True,
     }
